@@ -5,7 +5,7 @@
 > Ask a question about one (or several) A-share companies' **financial reports and filings**, and get an answer that is
 > **cited to the official source, checkable, and refuses to fabricate**.
 > Numbers are computed exactly, text answers carry provenance, out-of-corpus questions are declined —
-> **it only restates and computes public disclosure; not investment advice.**
+> it only restates and computes public disclosure.
 
 > Project status: QUANTSKILLS **Community Project** — not reviewed, certified or endorsed by QuantSkills. Task ID `#42`.
 
