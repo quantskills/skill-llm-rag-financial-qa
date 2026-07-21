@@ -1,0 +1,40 @@
+{
+  "name": "skill-llm-rag-financial-qa",
+  "version": "1.0.0",
+  "build_id": "42",
+  "type": "build",
+  "category": "report",
+  "description": "财报公告 RAG 问答：三路路由（数字精确算/底仓文本检索/官方全文按需）+ 引用纪律 + 拒答，PandaData 优先、官方披露网页为次级源。可被复盘 agent 或投研 agent 调用。",
+  "data_source": "PandaData (panda_data>=0.0.9); 官方披露平台（巨潮/交易所/HKEX/EDGAR）为全文次级源",
+  "entrypoints": {
+    "run": "scripts/build.py:run",
+    "validate_input": "scripts/build.py:validate_input",
+    "backfill": "scripts/build.py:backfill",
+    "maintain_daily": "scripts/build.py:maintain_daily",
+    "save_corpus": "scripts/build.py:save_corpus",
+    "load_corpus": "scripts/build.py:load_corpus",
+    "answer": "scripts/qa.py:answer",
+    "answer_numeric": "scripts/qa.py:answer_numeric",
+    "classify_route": "scripts/qa.py:classify_route",
+    "retrieve": "scripts/retrieve.py:retrieve",
+    "inspect": "scripts/build.py:inspect",
+    "brief": "scripts/build.py:brief",
+    "render_quarterly_chart": "scripts/render.py:render_quarterly_chart",
+    "quarterly_series": "scripts/render.py:quarterly_series",
+    "ingest_build_corpus": "scripts/ingest.py:build_corpus",
+    "ingest_numeric_cache": "scripts/ingest.py:load_numeric_cache",
+    "test": "scripts/test.py"
+  },
+  "inputs": ["question|{question,symbols?,date_range?,doc_types?,docs?,cache?}", "config"],
+  "outputs": {
+    "format": "dict",
+    "keys": ["question", "route", "mode", "numeric", "evidence", "citations", "answer", "answer_contract", "degraded"],
+    "citation_forms": ["[source_api|field|info_date|symbol]", "[get_fina_reports|metric yoy|date|symbol]（算式）", "[url|title|date|fetched]"]
+  },
+  "produces_parquet": true,
+  "parquet_role": "底仓 doc 语料（文本检索用），非结果面板",
+  "callable_by_alpha": true,
+  "offline_testable": true,
+  "web_channel": "enable_web 默认 false（官方披露平台白名单；具体检索入口需有网实测）",
+  "disclaimer": "仅量化研究与教育示例，不构成投资建议，不承诺收益；问答仅复述/计算公开披露，核对以官方原文为准。"
+}

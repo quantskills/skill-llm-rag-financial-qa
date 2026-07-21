@@ -1,0 +1,46 @@
+# QuantSkills project manifest — skill-llm-rag-financial-qa (#42)
+metadata:
+  organization: QuantSkills
+  organization_url: https://github.com/quantskills
+  repository: skill-llm-rag-financial-qa
+  repository_url: https://github.com/quantskills/skill-llm-rag-financial-qa
+  project_type: skill
+  collection: llm-tooling
+  license: GPL-3.0-only
+  status: community-project          # 未经官方审核/认证
+  maintainer: ZLHad
+
+name: 财报公告 RAG 问答系统 (LLM RAG Financial QA)
+summary: >-
+  就一家 A 股公司的财报/公告提问，给出带官方引用、可核对、拒绝编造的回答。
+  三路路由：数字精确算（get_fina_reports，PIT，含真实同比）/ 底仓文本检索（BM25，7 源）/
+  官方全文按需（巨潮/交易所/HKEX/EDGAR，可选可降级，不抓付费研报）。非投资建议。
+
+declaration: SKILL.md
+detailed_skill: 开发产物/SKILL.md
+readme:
+  zh: README.md
+  en: README.en.md
+
+data_source: PandaData (panda_data>=0.0.9) + 官方披露平台（全文次级源）
+dependencies: [panda_data>=0.0.9, pandas, pyarrow]
+optional_dependencies: [beautifulsoup4, pdfminer.six, requests]
+
+entrypoints:
+  qa: 开发产物/scripts/build.py:run
+  cli: python 开发产物/scripts/build.py --question
+  backfill: python 开发产物/scripts/build.py --backfill
+  answer: 开发产物/scripts/qa.py:answer
+  retrieve: 开发产物/scripts/retrieve.py:retrieve
+  test: python 开发产物/scripts/test.py
+
+runtimes:
+  claude-code: { declaration: 开发产物/SKILL.md, invoke: cli }
+  codex:       { declaration: SKILL.md, invoke: cli }
+  cursor:      { declaration: SKILL.md, invoke: cli }
+
+disclaimer: >-
+  Community Project，未经 QuantSkills 官方审核/认证/背书。仅供量化研究与教育示例，
+  不构成投资建议，不承诺收益。问答仅复述/计算公开披露，核对以官方原文为准；
+  只抓官方披露平台、不抓付费研报（版权 + 社区规则 §3）。全文路默认关闭，需有网实测入口。
+  数据源、假设、参数、限制与风险边界见 SKILL.md 与 开发产物/references/。

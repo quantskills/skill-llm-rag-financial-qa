@@ -1,0 +1,67 @@
+{
+  "_comment": "金标问答集（回归用）。expect 描述引擎应产出的可核对特征，非成品文案。文本路对底仓 database.parquet；数字路对 get_fina_reports 实时缓存。所有条目均可用 scripts/test.py 或 build.run 复现。",
+  "build_id": "42",
+  "data_source": "PandaData",
+  "cases": [
+    {
+      "id": "num-yoy-profit",
+      "question": "宁德时代2024q4归母净利润增速",
+      "symbols": ["300750.SZ"],
+      "expect": {"route_has": "numeric", "is_growth": true, "unit": "%", "value_real_2024q4": 15.01,
+                 "cite_contains": "is_n_income_attr_p yoy", "note": "同比取上年同季，负基数带符号"}
+    },
+    {
+      "id": "num-yoy-revenue-negative",
+      "question": "宁德时代2024q4营收增速",
+      "symbols": ["300750.SZ"],
+      "expect": {"route_has": "numeric", "is_growth": true, "value_real_2024q4": -9.7,
+                 "note": "负增长必须带负号，不得取绝对值"}
+    },
+    {
+      "id": "num-abs-profit",
+      "question": "宁德时代2024q4归母净利润多少",
+      "symbols": ["300750.SZ"],
+      "expect": {"route_has": "numeric", "is_growth": false, "value_real_2024q4": 50744682000.0,
+                 "cite_contains": "get_fina_reports|is_n_income_attr_p"}
+    },
+    {
+      "id": "text-shareholder-reason",
+      "question": "紫金矿业为什么减持盾安环境",
+      "symbols": ["002011.SZ"],
+      "expect": {"route": ["text"], "doc_type_recalled": "shareholder_change",
+                 "evidence_contains": "自身经营需要", "cite_form": "[get_stock_shareholder_change|reason|info_date|002011.SZ]"}
+    },
+    {
+      "id": "text-status-change",
+      "question": "ST合泰为什么被实施退市风险警示",
+      "symbols": ["002217.SZ"],
+      "expect": {"route": ["text"], "doc_type_recalled": "status_change",
+                 "evidence_contains": "净资产为负", "has_citation": true}
+    },
+    {
+      "id": "text-repurchase-purpose",
+      "question": "盾安环境回购的目的是什么",
+      "symbols": ["002011.SZ"],
+      "expect": {"route": ["text"], "doc_type_recalled": "repurchase", "has_citation": true}
+    },
+    {
+      "id": "text-forecast",
+      "question": "盾安环境业绩预告怎么说",
+      "symbols": ["002011.SZ"],
+      "expect": {"route": ["text"], "doc_type_recalled": "forecast", "has_citation": true}
+    },
+    {
+      "id": "refuse-out-of-corpus",
+      "question": "这家公司董事长是谁",
+      "symbols": ["888888.SZ"],
+      "expect": {"answer": "insufficient_evidence", "degraded": true,
+                 "note": "硬拒答：symbol 不在底仓"}
+    },
+    {
+      "id": "boundary-topic-not-covered",
+      "question": "贵州茅台董事长的私人联系方式",
+      "symbols": ["600519.SH"],
+      "expect": {"answer": null, "note": "话题不覆盖：symbol 在底仓→返回真实证据，由 agent 按 answer_contract 声明超出边界，不编造。引擎不硬拒答（诚实边界）。"}
+    }
+  ]
+}
