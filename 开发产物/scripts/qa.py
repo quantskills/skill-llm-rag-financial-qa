@@ -112,7 +112,34 @@ def _cite_doc(d: dict) -> str:
 # ============================================================================
 # 数字路（精确计算，绝不进检索层）
 # ============================================================================
+def resolve_quarters(question: str) -> tuple[list[str], bool]:
+    """解析问题里的**全部**期间（跨期问答用），如"2022 2023 2024 三年"→ 三个季度。
+
+    单期沿用 resolve_quarter 的语义；多期时按出现顺序去重返回。
+    返回 (quarters, explicit)；explicit=False 表示完全没提期间。
+    """
+    ql = str(question).lower()
+    found: list[str] = []
+    for m in _Q.finditer(ql):                          # 精确 2025q4 可能多个
+        q = m.group().lower()
+        if q not in found:
+            found.append(q)
+    if found:
+        return found, True
+    # 自然语言期间：同一后缀规则下可能出现多个年份（如"2023年和2024年报"）
+    for rx, suf in ((_Q_MID, "q2"), (_Q_Q1, "q1"), (_Q_Q3, "q3"), (_Q_ANNUAL, "q4"), (_Q_BARE_YEAR, "q4")):
+        for mm in rx.finditer(ql):
+            q = f"{mm.group(1)}{suf}"
+            if q not in found:
+                found.append(q)
+        if found:
+            return found, True
+    return [], False
+
+
 def answer_numeric(question: str, cache, filters: dict) -> Optional[dict]:
+    """数字路入口。支持**跨公司 / 跨期**：多票或多期时逐个精确计算，
+    结果放在 `items`，绝不静默只答一个（清单 #42 要求「支持跨公司/跨期问答」）。"""
     if cache is None or getattr(cache, "empty", True):
         return None
     ql = str(question).lower()
@@ -120,6 +147,44 @@ def answer_numeric(question: str, cache, filters: dict) -> Optional[dict]:
     metric = next((col for kw, col in METRIC_MAP.items() if kw in ql), None)
     if not syms or metric is None or metric not in cache.columns:
         return None
+    quarters, q_explicit = resolve_quarters(ql)
+    # 单票单期 → 原样返回（向后兼容既有调用方与引用格式）
+    if len(syms) <= 1 and len(quarters) <= 1:
+        return _numeric_one(ql, cache, syms, metric, quarters[0] if quarters else None, q_explicit)
+    items, missing = [], []
+    for sym in syms:
+        got = 0
+        for tq in (quarters or [None]):
+            one = _numeric_one(ql, cache, [sym], metric, tq, q_explicit)
+            if one:
+                items.append(one)
+                got += 1
+        if got == 0:
+            missing.append(sym)                        # 底仓无该票 → 记下来，绝不静默丢
+    if not items:
+        return None
+    if len(items) == 1 and not missing:
+        return items[0]
+    # 多结果：顶层保留首条以兼容旧读法，但显式标 multi + note，逼调用方读全 items
+    out = dict(items[0])
+    out["multi"] = True
+    out["items"] = items
+    out["symbols"] = list(dict.fromkeys(i.get("symbol") for i in items if i.get("symbol")))
+    out["quarters"] = list(dict.fromkeys(i.get("quarter") for i in items if i.get("quarter")))
+    out["cite"] = " ; ".join(i["cite"] for i in items if i.get("cite"))
+    note = (f"跨公司/跨期问题，共 {len(items)} 条结果，完整数据在 items[]；"
+            f"顶层字段仅为 items[0]（{out.get('symbol')} {out.get('quarter')}），"
+            "作答须逐条引用 items，不得只答其中一条")
+    if missing:
+        out["missing_symbols"] = missing
+        note += f"；另有 {len(missing)} 只无数据须明说：{', '.join(missing)}"
+    out["note"] = note
+    return out
+
+
+def _numeric_one(ql: str, cache, syms: list, metric: str,
+                 tq_in: Optional[str], q_explicit: bool) -> Optional[dict]:
+    """单票单期的精确取数（原 answer_numeric 主体）。"""
     sub = cache[cache["symbol"].isin(syms)].copy()
     if sub.empty:
         return None
@@ -128,7 +193,7 @@ def answer_numeric(question: str, cache, filters: dict) -> Optional[dict]:
     sub["_pref"] = (pd.to_numeric(sub.get("if_adjusted", 0), errors="coerce").fillna(0) != 0).astype(int)  # 0=原始优先
     piv = (sub.sort_values(["quarter", "_pref", "date"], ascending=[True, True, False])
               .groupby("quarter", as_index=False).first().sort_values("quarter"))
-    tq, explicit = resolve_quarter(ql)
+    tq, explicit = (tq_in, q_explicit) if tq_in else resolve_quarter(ql)
     avail = list(piv["quarter"])
     if explicit and tq:
         row = piv[piv["quarter"].str.lower() == tq.lower()]
@@ -216,7 +281,10 @@ def answer(question: str, docs: Optional[list[dict]] = None, cache=None,
         num = answer_numeric(question, cache, filters or {})
         if num:
             result["numeric"] = num
-            result["citations"].append(num["cite"])
+            # 跨公司/跨期：逐条引用都要进 citations，防"只引一条"
+            for it in num.get("items") or [num]:
+                if it.get("cite"):
+                    result["citations"].append(it["cite"])
 
     if "text" in route or "fulltext" in route:
         emb = HashEmbedder() if cfg.get("enable_vector") else None
@@ -258,8 +326,16 @@ def answer(question: str, docs: Optional[list[dict]] = None, cache=None,
     if cfg.get("llm"):
         result["answer"] = _llm_answer(question, result, cfg["llm"])
     else:
-        result["answer_contract"] = ("请逐条基于 evidence/numeric 作答，每个结论后附 cite 引用；"
-                                     "语料未覆盖必须明说'不确定/超出语料边界'，禁止编造。")
+        contract = ("请逐条基于 evidence/numeric 作答，每个结论后附 cite 引用；"
+                    "语料未覆盖必须明说'不确定/超出语料边界'，禁止编造。")
+        if (result.get("numeric") or {}).get("multi"):
+            n = result["numeric"]
+            contract += (f" 本题为跨公司/跨期问题：numeric.items 共 {len(n['items'])} 条，"
+                         "必须逐条列出并各自引用，不得只答其中一条")
+            if n.get("missing_symbols"):
+                contract += f"；无数据的标的须明确说明：{', '.join(n['missing_symbols'])}"
+            contract += "。"
+        result["answer_contract"] = contract
     return result
 
 

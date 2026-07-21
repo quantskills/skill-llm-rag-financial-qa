@@ -31,7 +31,9 @@
 
 ## 二、测试覆盖（`test.py`，全离线，两环境全绿）
 
-`python scripts/test.py` → **18/18 通过**（无 panda_data 也全绿；真实数据用例按配额自动跳过；含 artifact 复盘新增 4 项：年份归一化 / 单季拆解 / 重述稳定性 / ingest 三源修复）：
+`python scripts/test.py` → **23/23 通过**（无 panda_data 也全绿；真实数据用例按配额自动跳过）。
+含 artifact 复盘 4 项（年份归一化 / 单季拆解 / 重述稳定性 / ingest 三源修复）与 2026-07-21 新增 4 项
+（跨公司 / 跨期 / 缺票声明 / 单票向后兼容）：
 
 1. `test_tokenize_bm25` 中文 bigram + 英数词、BM25 命中
 2. `test_retrieve_modes` direct（相关性排序）/ bm25 / hybrid（RRF）/ 元数据过滤
@@ -47,6 +49,10 @@
 12. `test_build_validate_and_run` validate 抛错 + run 直连离线问答
 13. `test_golden_qa` 3 条金标：召回命中 + 引用齐全
 14. `test_real_data_optional` 真实底仓（实测拉到 18 条）
+15. `test_cross_company_numeric` **跨公司数字问答**：两家各出一数、citations ≥2、逐条带引用
+16. `test_cross_period_numeric` **跨期数字问答**：问三年出三期且顺序/单调正确
+17. `test_cross_company_missing_declared` 底仓缺票时 `missing_symbols` 显式点名并进作答契约
+18. `test_single_symbol_backward_compat` 单票单期返回形状不变（不引入 multi/items）
 
 ## 三、开发中发现并修复的缺陷（测试驱动）
 
@@ -84,6 +90,47 @@
 - **现象**（真机实测抓出）：问"盾安环境**回购**的目的"，direct 模式下**减持**doc 排在**回购**doc 前面——因"盾安环境"公司名 token 是高 IDF、且减持 doc 更短（BM25 长度归一偏好短文），把主题正确的回购 doc 压了下去。回购 doc 仍在候选里（召回不丢），但不在最前，LLM 读 top-K 可能读偏。
 - **修复**：`qa.intent_doc_types` 从问题识别意图 doc_type（回购→repurchase、减持/增持→shareholder_change、解禁→restricted、预告→forecast、退市/ST→status_change、龙虎榜→lhb、审计→audit），`retrieve` 对命中类型**软加权前置**（direct 稳定前置、bm25/hybrid +0.5×最高分），**不删候选、保召回**。
 - **回归**：新增 `test_doctype_intent_boost`；修复后真机"盾安回购"top 证据变为 repurchase。
+
+### 🔁 对照任务清单 #42 的功能缺口复核（2026-07-21）
+
+**【阻断级】跨公司 / 跨期数字问答静默丢票**
+
+清单 #42 的"视角"明确要求「支持**跨公司 / 跨期问答**」。文本路是好的（BM25 + `symbols` 过滤实测能同时召回
+多家公司的 doc），但**数字路会静默只答一个**。
+
+- **根因**：`answer_numeric` 用 `sub[sub.symbol.isin(syms)]` 过滤出多家公司后，紧接着
+  `groupby("quarter").first()` —— **只按季度分组、没有按 symbol 分组**，多家公司同一季度的行被折叠成一行，
+  排序后只留下其中一家。跨期同理：`resolve_quarter` 只解析出**一个**目标季度。
+- **实测复现**：底仓有宁德(500 亿) + 比亚迪(4 亿) 两家的 2024q4，问"宁德时代和比亚迪 2024q4 归母净利润"
+  （两个 symbol 都传），返回 `value=400000000.0 / symbol=002594.SZ` —— **只有比亚迪，宁德的 500 亿被静默丢弃**。
+  引用本身没错（symbol 标注正确），但用户问了两家只答一家、且**毫无提示**，与本 skill"证据不足就拒答、
+  绝不含糊"的核心承诺直接冲突。
+- **修复**：
+  1. 抽出 `_numeric_one()`（单票单期精确取数，即原主体），`answer_numeric` 改为按 **票 × 期** 笛卡尔展开逐个计算；
+  2. 新增 `resolve_quarters()` 解析问题中的**全部**期间（"2022 2023 2024 三年"→ 三个季度）；
+  3. 多结果时返回 `multi=True` + `items[]`（每条各带独立 cite）+ `symbols/quarters`，
+     顶层字段保留 items[0] 以兼容既有调用方，但用 `note` 明确"顶层仅为其中一条，作答须逐条引用"；
+  4. `answer()` 把 **每条 item 的 cite 都收进 `citations`**（原来只收一条），并在 `answer_contract` 里
+     强制"必须逐条列出并各自引用，不得只答其中一条"；
+  5. 底仓缺某票时写入 `missing_symbols` 并进作答契约——**显式点名缺哪只，而不是悄悄省略**（拒答纪律的延伸）。
+- **回归**：新增 4 项 —— `test_cross_company_numeric`（两家各出一数、citations ≥2）、
+  `test_cross_period_numeric`（问三年出三期且单调）、`test_cross_company_missing_declared`（缺票显式声明）、
+  `test_single_symbol_backward_compat`（单票单期返回形状不变，不引入 multi/items）。
+
+**关于清单点名却未采用的接口（如实说明，非遗漏）**
+
+清单 #42 方案 A 点名"IR QA 原文 / 诉讼描述 / 合同摘要 / 审计意见段"。核对 PandaData **最新接口文档（187 方法）**：
+
+| 清单点名 | 核对结果 |
+|---|---|
+| `get_audit_opinion`（审计意见段） | ✅ 存在，已接入（`doc_type=audit`） |
+| `get_investor_brief_detail` / `get_investor_brief_qa`（IR QA 原文） | ❌ 不存在。近似接口 `get_investor_activity`(A股) 只有**参与机构/人员**字段、`get_stock_ir_activity`/`get_stock_ir_event`(港美股) 只有**事件标题**——**均无问答正文**，无法兑现"QA 原文" |
+| `get_stock_litigation_arbitration`（诉讼描述） | ❌ 最新文档中不存在 |
+| `get_stock_material_contract`（合同摘要） | ❌ 最新文档中不存在 |
+| `get_stock_disclosure_date` | ❌ 最新文档中不存在 |
+
+故按本地实际可得字段重新设计为 7 源语料（lhb / audit / shareholder_change / repurchase / restricted /
+forecast / status_change）。这是**接口不可得导致的合理替代**，不是实现遗漏。
 
 ## 四、需要如实转达的边界（不可回避的诚实）
 

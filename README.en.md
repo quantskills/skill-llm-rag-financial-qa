@@ -1,55 +1,179 @@
-# skill-llm-rag-financial-qa (#42)
+# 📑 Financial Filing RAG Q&A
 
-> Financial-report & filing RAG Q&A · BUILD-type skill · Community Project
-> **Ask a question about an A-share company's filings/financials and get an answer that is cited to the official source, checkable, and refuses to fabricate.** Numbers are computed exactly, text answers carry provenance, and out-of-corpus questions are declined.
+[简体中文](README.md) | **English**
 
-## What it answers
+> Ask a question about one (or several) A-share companies' **financial reports and filings**, and get an answer that is
+> **cited to the official source, checkable, and refuses to fabricate**.
+> Numbers are computed exactly, text answers carry provenance, out-of-corpus questions are declined —
+> **it only restates and computes public disclosure; not investment advice.**
 
-- Numeric: "Ningde 2024Q4 net-profit **growth**?" → exact **YoY +15.01%** from PIT financials (with the arithmetic in the citation), never model mental math.
-- Textual: "**Why** did Zijin cut its Dun'an stake?" → retrieves the official filing text ("operational needs of its own"), with a four-part citation.
-- Not covered: "Who is the chairman?" (not in corpus) → **refuses**, no fabrication.
+> Project status: QUANTSKILLS **Community Project** — not reviewed, certified or endorsed by QuantSkills. Task ID `#42`.
 
-**Explicitly does NOT**: value companies, give buy/sell advice, or predict prices. **Restates/computes public disclosure only; not investment advice.**
+<p align="center">
+  <img alt="type" src="https://img.shields.io/badge/type-BUILD%20skill-brightgreen">
+  <img alt="task" src="https://img.shields.io/badge/task-%2342-informational">
+  <img alt="routes" src="https://img.shields.io/badge/routing-3--way-blue">
+  <img alt="citation" src="https://img.shields.io/badge/citation-mandatory-success">
+  <img alt="tests" src="https://img.shields.io/badge/offline%20tests-23%20passing-success">
+  <img alt="data" src="https://img.shields.io/badge/data-PandaData-ff69b4">
+  <img alt="deps" src="https://img.shields.io/badge/retrieval-zero%20dependency-7c3aed">
+  <img alt="license" src="https://img.shields.io/badge/license-GPLv3-blue">
+</p>
 
-## Three-way routing ("numbers never enter the retrieval layer" is the anti-hallucination red line)
+---
 
-| Route | Trigger | Source | How it answers |
+## 📖 What this is
+
+RAG (Retrieval-Augmented Generation) in plain terms: **find the relevant official text first, then answer from it and cite the source.**
+
+The key judgement here is that **not every question should go through retrieval.** Asking an LLM to "retrieve" a net-profit
+figure and then do mental arithmetic on it is a primary source of hallucination. Hence **three-way routing**: compute numbers
+exactly, retrieve only for text, fetch web pages only when the original wording is demanded.
+
+| Question type | How it answers | Example |
+|---|---|---|
+| **Numeric** | PIT financials → **exact pandas computation** | "CATL 2024Q4 net-profit **growth**?" → **+15.01%** (arithmetic shown in the citation) |
+| **Textual** | BM25 over the official-text corpus | "**Why** did Zijin cut its Dun'an stake?" → "operational needs of its own" (four-part citation) |
+| **Not covered** | **Refuses** | "Who is the chairman?" → `insufficient_evidence`, no fabrication |
+
+**Explicitly does NOT**: value companies, give buy/sell advice, or predict prices.
+
+---
+
+## 🧭 Three-way routing ("numbers never enter the retrieval layer" is the anti-hallucination red line)
+
+```mermaid
+flowchart TD
+    Q["❓ Natural-language question<br/>+ symbol filter"] --> R{"🔀 classify_route"}
+
+    R -->|"profit / revenue / margin<br/>EPS / growth / YoY"| N["🔢 Numeric route<br/>get_fina_reports (PIT by announce date)"]
+    R -->|"reason / purpose / terms<br/>why"| T["📚 Corpus text route<br/>database.parquet · 7 sources"]
+    R -->|"asks for original text<br/>or corpus insufficient"| W["🌐 Full-text route<br/>official venues (off by default)"]
+
+    N --> N1["exact pandas fetch<br/>true YoY · sign-correct on negative base<br/>cumulative → single-quarter split"]
+    T --> T1["pure-Python BM25<br/>+ metadata filter + RRF"]
+    W --> W1["whitelisted fetch → section chunking<br/>degrade notice on failure"]
+
+    N1 --> C["🔖 Mandatory four-part citation<br/>[api | field | date | symbol]"]
+    T1 --> C
+    W1 --> C
+
+    C --> D{"Enough evidence?"}
+    D -->|yes| A["✅ evidence + citations<br/>+ answer_contract → calling agent"]
+    D -->|no| X["🚫 insufficient_evidence<br/>refuse, never fabricate"]
+```
+
+### Route contracts
+
+| Route | Trigger | Source | Key discipline |
 |---|---|---|---|
-| ① Numeric | profit / revenue / margin / EPS / **growth (YoY)** | `get_fina_reports` (PIT by announce date) | pandas exact fetch / YoY, sign-correct on negative base |
-| ② Corpus text | reason / purpose / terms / why | `database.parquet` corpus (7 sources) | pure-Python BM25 + metadata filter; direct-read for small material |
-| ③ Full text | asks for "original text/clause" or corpus insufficient | official venues (CNINFO / exchanges / HKEX / EDGAR) | on-demand fetch → section chunking (optional, degradable) |
+| ① **Numeric** | profit / revenue / margin / EPS / **growth / YoY** | `get_fina_reports` (PIT by announce date) | Never enters retrieval, never model mental math; PIT prefers the **original filing** over later restatements |
+| ② **Corpus text** | reason / purpose / terms / why | `database.parquet` (7-source doc corpus) | Pure-Python BM25, **zero third-party deps, zero network**; direct-read for small material |
+| ③ **Full text** | asks for "original text / clause", or corpus insufficient | CNINFO / exchanges / HKEX / EDGAR | **Official venues only, never paid research**; off by default, degrades explicitly on failure |
 
-Every conclusion carries an official four-part citation `[api|field|date|symbol]`; insufficient evidence → refuse.
+---
 
-## Quick start
+## 🔖 Citation discipline: checkability is the floor
+
+Every conclusion carries an **official four-part citation**, formatted per source:
+
+| Source | Citation form | Example |
+|---|---|---|
+| PandaData structured field | `[api\|field\|date\|symbol]` | `[get_repurchase\|purpose\|20250730\|002011.SZ]` |
+| Numeric route, YoY | citation **includes the arithmetic** | `[get_fina_reports\|is_n_income_attr_p yoy\|20260310\|300750.SZ] (2024q4=5.074e+10 ÷ 2023q4=4.412e+10)` |
+| Official web full text | `[url\|title\|date\|fetched]` | — |
+
+**No finished answer is generated by default**: it returns `evidence / numeric / citations` plus an `answer_contract`
+("answer point by point from the evidence, attach a cite to every claim, state explicitly whatever is not covered"),
+and the calling agent writes the prose. Set `config.llm` to generate internally.
+
+---
+
+## 🧪 Cross-company / cross-period questions
+
+When several companies or periods are asked about, each is computed exactly — **never silently answering only one**:
+
+```python
+n = qa.answer_numeric("CATL and BYD 2024q4 net profit", cache,
+                      {"symbols": ["300750.SZ", "002594.SZ"]})
+n["multi"]   # True
+n["items"]   # [{symbol:300750.SZ, value:…, cite:…}, {symbol:002594.SZ, value:…, cite:…}]
+```
+
+If a requested symbol is absent from the corpus, it is **named explicitly** in `missing_symbols` and in the answer
+contract, rather than quietly dropped — an extension of the refusal discipline.
+
+---
+
+## 🚀 Quick start
 
 ```bash
 pip install --upgrade panda_data pyarrow
 export PANDA_USERNAME=<phone>; export PANDA_PASSWORD=<password>   # or ~/.pandadata/pandadata.env
 
+# Numeric growth question
 python 开发产物/scripts/build.py --question "宁德时代2024q4归母净利润增速" --symbols 300750.SZ
+# Textual "why" question
 python 开发产物/scripts/build.py --question "紫金矿业为什么减持盾安环境" --symbols 002011.SZ
+# Build the corpus → database.parquet
 python 开发产物/scripts/build.py --symbols 002011.SZ 300750.SZ --backfill 20240101 20260711
-python 开发产物/scripts/test.py     # fully offline self-test (all green without panda_data)
+# Fully offline self-test (all green without panda_data)
+python 开发产物/scripts/test.py
 ```
 
-## Layout
+---
+
+## 📂 Layout
 
 ```
-开发产物/ (development)
-  scripts/  qa.py · retrieve.py · ingest.py · webfetch.py · build.py · render.py · test.py (19 cases)
-  references/  api_guide.md · quality_evidence.md · golden_qa.json
+开发产物/  (development)
+  scripts/
+    qa.py          3-way routing + citation discipline + refusal + cross-company/period numerics
+    retrieve.py    retrieval layer (pure-Python BM25 / HashEmbedder / RRF, zero IO, zero network)
+    ingest.py      PandaData 7 text sources → doc corpus + numeric cache (PIT)
+    webfetch.py    on-demand official full text (whitelist / rate limit / degrade; off by default)
+    build.py       run / validate_input / backfill / maintain_daily / save_corpus
+    render.py      single-quarter split + SVG bar chart (green up, red down)
+    test.py        fully offline fixtures (23 cases)
+  references/
+    api_guide.md        interfaces, field semantics, live-tested findings
+    quality_evidence.md real-ticker verification, coverage, defect fixes, honest boundaries
+    golden_qa.json      golden Q&A set (regression, all reproducible)
   SKILL.md / skill.json
-生产产物/ (production)
-  database.parquet             corpus (154 docs / 11 tickers)
+生产产物/  (production)
+  database.parquet             doc corpus (bundled sample: 154 docs / 11 tickers)
   sample_quarterly_688347.html single-quarter decomposition chart sample
   SKILL.md                     corpus read rules
 ```
 
-## Data & disclaimer
+---
 
-Source: PandaData (credentials via env vars or `~/.pandadata/pandadata.env`, **never hard-coded**) + official disclosure venues (secondary full-text source). **Only official venues are fetched; no paid research (Wind/Choice) — copyright + community rule §3.** The full-text route is off by default and needs a live-tested entry point.
+## 📊 Corpus sources (7 types)
 
-**Community Project, not reviewed / certified / endorsed by QuantSkills. Research & educational example only; not investment advice, no return promises.** The Q&A only restates/computes public disclosure; verify against the original filing. Refusal has two tiers: hard (symbol not in corpus, engine-guaranteed) / topic-not-covered (declared by the calling agent per contract) — see quality_evidence.md.
+| doc_type | Interface | Content |
+|---|---|---|
+| `lhb` | `get_lhb_list` | Reason for appearing on the dragon-tiger list |
+| `audit` | `get_audit_opinion` | Audit opinion type (distinguishes "covered, clean" from "genuinely no data") |
+| `shareholder_change` | `get_stock_shareholder_change` | Stake increase/decrease reasons (with direction) |
+| `repurchase` | `get_repurchase` | Buyback purpose (up to 573 chars) |
+| `restricted` | `get_restricted_list` | Lockup-release batches and reasons (aggregated per batch) |
+| `forecast` | `get_fina_forecast` | Earnings pre-announcement direction |
+| `status_change` | `get_stock_status_change` | ST / delisting risk / restructuring notes |
 
-License: GPL-3.0-only
+> The interfaces named in the original task spec — `get_investor_brief_qa`, `get_stock_litigation_arbitration`,
+> `get_stock_material_contract` — **do not exist** in the latest PandaData interface documentation (187 methods),
+> so the corpus was redesigned around the seven fields actually available.
+
+---
+
+## ⚖️ Data & disclaimer
+
+- **Source**: PandaData (credentials via env vars or `~/.pandadata/pandadata.env`, **never hard-coded**) + official disclosure venues (secondary full-text source).
+- **Official venues only; no paid research (Wind / Choice)** — copyright + community rule §3. The full-text route is off by default.
+- **Known limits**: the bundled corpus covers a small universe (11 tickers); re-run `backfill` for your own universe. The HK/US full-text channel needs a live-tested entry point.
+- **Refusal has two tiers**: hard (symbol not in corpus, engine-guaranteed) / topic-not-covered (declared by the calling agent per contract) — see `quality_evidence.md`.
+
+> **Community Project, not reviewed / certified / endorsed by QuantSkills. Research and educational example only;
+> not investment advice, no return promises.** The Q&A only restates and computes public disclosure; verify against the original filing.
+
+License: **GPL-3.0-only**

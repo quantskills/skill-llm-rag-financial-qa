@@ -92,6 +92,69 @@ def test_numeric_path():
     print("✅ test_numeric_path（数字路精确算+PIT引用，绝不进检索层）")
 
 
+def _cache_multi():
+    """两票 × 三期，供跨公司/跨期问答用。"""
+    rows = []
+    for sym, base in (("300750.SZ", 4.0e10), ("002594.SZ", 3.0e9)):
+        for i, q in enumerate(("2023q4", "2024q4", "2025q4")):
+            rows.append({"symbol": sym, "quarter": q, "date": f"{2024 + i}0310", "if_adjusted": 0,
+                         "is_revenue": base * 6, "is_n_income_attr_p": base * (1 + 0.2 * i)})
+    return pd.DataFrame(rows)
+
+
+def test_cross_company_numeric():
+    """跨公司数字问答不得静默丢票（清单 #42 要求「支持跨公司问答」）。
+    修前：groupby('quarter') 未按 symbol 分组 → 两家公司只返回一个数。"""
+    cache = _cache_multi()
+    syms = ["300750.SZ", "002594.SZ"]
+    n = Q.answer_numeric("宁德时代和比亚迪 2024q4 归母净利润", cache, {"symbols": syms})
+    assert n and n.get("multi") is True, "跨公司须标记 multi"
+    assert len(n["items"]) == 2, f"两家公司应各有一条，实际 {len(n['items'])}"
+    got = {i["symbol"]: i["value"] for i in n["items"]}
+    assert set(got) == set(syms), f"缺票：{set(syms) - set(got)}"
+    assert abs(got["300750.SZ"] - 4.8e10) < 1 and abs(got["002594.SZ"] - 3.6e9) < 1, got
+    # 每条各自带可回溯引用，且 answer() 把它们全部收进 citations
+    assert all("|002594.SZ]" in i["cite"] or "|300750.SZ]" in i["cite"] for i in n["items"])
+    a = Q.answer("宁德时代和比亚迪 2024q4 归母净利润", [], cache, filters={"symbols": syms})
+    assert len(a["citations"]) >= 2, f"跨公司应引用 ≥2 条，实际 {len(a['citations'])}"
+    assert "逐条列出" in a["answer_contract"]
+    print(f"✅ test_cross_company_numeric（2 家各出一数 {got}，引用 {len(a['citations'])} 条）")
+
+
+def test_cross_period_numeric():
+    """跨期数字问答：问三年应给三期，不得只答最新一期。"""
+    cache = _cache_multi()
+    n = Q.answer_numeric("宁德时代 2023q4 2024q4 2025q4 归母净利润", cache, {"symbols": ["300750.SZ"]})
+    assert n and n.get("multi") is True and len(n["items"]) == 3, n and len(n.get("items", []))
+    qs = [i["quarter"] for i in n["items"]]
+    assert qs == ["2023q4", "2024q4", "2025q4"], qs
+    vals = [i["value"] for i in n["items"]]
+    assert vals[0] < vals[1] < vals[2], vals
+    print(f"✅ test_cross_period_numeric（3 期齐出 {qs}）")
+
+
+def test_cross_company_missing_declared():
+    """跨公司时底仓缺某票 → 必须显式声明缺哪只，不静默省略（拒答纪律的延伸）。"""
+    cache = _cache_multi()
+    n = Q.answer_numeric("宁德时代和某票 2024q4 归母净利润", cache,
+                         {"symbols": ["300750.SZ", "999999.SZ"]})
+    assert n and n.get("missing_symbols") == ["999999.SZ"], n.get("missing_symbols")
+    assert "999999.SZ" in n["note"]
+    a = Q.answer("宁德时代和某票 2024q4 归母净利润", [], cache,
+                 filters={"symbols": ["300750.SZ", "999999.SZ"]})
+    assert "999999.SZ" in a["answer_contract"], "缺票须写进作答契约"
+    print("✅ test_cross_company_missing_declared（缺票显式声明，不静默省略）")
+
+
+def test_single_symbol_backward_compat():
+    """单票单期必须保持原返回形状（不引入 multi/items），避免破坏既有调用方。"""
+    docs, cache = _docs(), _cache()
+    n = Q.answer_numeric("宁德时代2025q3归母净利润", cache, {"symbols": ["300750.SZ"]})
+    assert n and "multi" not in n and "items" not in n, list(n)
+    assert n["cite"] == "[get_fina_reports|is_n_income_attr_p|20251030|300750.SZ]"
+    print("✅ test_single_symbol_backward_compat（单票单期返回形状不变）")
+
+
 def test_year_quarter_resolution():
     # artifact P0：'2025年报/2025年'→2025q4；未指明→最新一期且标注 inferred；不存在季度→不静默换季
     cache = pd.DataFrame([
@@ -326,6 +389,10 @@ if __name__ == "__main__":
     test_text_path_and_citation()
     test_doctype_intent_boost()
     test_refusal()
+    test_cross_company_numeric()
+    test_cross_period_numeric()
+    test_cross_company_missing_declared()
+    test_single_symbol_backward_compat()
     test_ingest_source_fixes()
     test_ingest_doc_and_chunk()
     test_webfetch_offline()

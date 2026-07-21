@@ -24,7 +24,7 @@ tags: [quant, build, development, rag, financial-qa, retrieval, citation]
 
 | 路 | 触发 | 数据来源 | 怎么答 |
 |---|---|---|---|
-| **① 数字路** | 净利/营收/毛利/EPS/**增速/同比**/多少 | `get_fina_reports`（PIT 按公告日） | pandas 精确取数/算同比，绝不进检索、绝不让模型心算 |
+| **① 数字路** | 净利/营收/毛利/EPS/**增速/同比**/多少 | `get_fina_reports`（PIT 按公告日） | pandas 精确取数/算同比，绝不进检索、绝不让模型心算；**跨公司/跨期逐个算，绝不静默只答一个** |
 | **② 底仓文本路** | 原因/目的/条款/为什么 | `database.parquet` 底仓 doc（7 源） | 纯 Python BM25 + 元数据过滤；小料直读全量交 agent |
 | **③ 全文路** | 点名"原文/全文/条款" 或 底仓不足 | 官方披露平台（巨潮/交易所/HKEX/EDGAR） | 按需抓取→章节切分（可选，`enable_web`；失败降级声明） |
 
@@ -53,7 +53,7 @@ tags: [quant, build, development, rag, financial-qa, retrieval, citation]
 | 字段 | 说明 |
 |---|---|
 | question / route | 原问题 / 命中的路（`["numeric"]`/`["text"]`/`["fulltext"]` 组合） |
-| numeric | 数字路结果：`{metric, metric_field, quarter, value, is_growth, unit?, abs_value?, base_quarter?, base_value?, cite}` |
+| numeric | 数字路结果：`{metric, metric_field, quarter, value, is_growth, unit?, abs_value?, base_quarter?, base_value?, cite}`；**跨公司/跨期时**追加 `multi=True` + `items[]`（逐票逐期各一条，各带 cite）+ `symbols/quarters`，缺票时另有 `missing_symbols` |
 | evidence | 文本/全文证据：`[{text, symbol, info_date, source_api, doc_type, score, cite}]` |
 | citations | 全部引用（四元组）列表 |
 | mode | 检索模式：`direct`（小料直读）/ `bm25` / `hybrid`（BM25+向量 RRF）/ `empty` |
