@@ -18,11 +18,11 @@ tags: [quant, build, production, rag, financial-qa]
 - 格式：Parquet（无 pyarrow 时开发脚本降级 CSV）
 - 角色：**底仓 doc 语料**——ingest 后供 `retrieve/qa` 检索；数字问题仍实时查 `get_fina_reports`（PIT），不落在本文件。
 - 更新频率：`backfill` 建历史底仓 + `maintain_daily` 每日增量（全市场增减持/龙虎榜按日期段）
-- 生成任务：`scripts/build.py`（`backfill` / `maintain_daily` → `save_corpus`）
+- 生成任务：`开发产物/scripts/build.py`（`backfill` / `maintain_daily` → `save_corpus`）
 
 ## 当前内容（随包样例，真实 ingest）
 
-- **溯源**：由 `scripts/build.py --backfill` 从 **真实 PandaData** 拉取生成（非合成/非测试桩），
+- **溯源**：由 `开发产物/scripts/build.py --backfill` 从 **真实 PandaData** 拉取生成（非合成/非测试桩），
   `update_time = 2026-07-11T17:18:06`，`data_version = rag-financial-qa-v1`。可用同一命令重建。
 - 规模：**154 条 doc / 11 票**（002011.SZ 盾安环境、002217.SZ *ST合泰、300750.SZ 宁德时代、000001.SZ 平安银行、
   002415.SZ 海康威视、002594.SZ 比亚迪、600519.SH 贵州茅台、300502.SZ 新易盛、002456.SZ 欧菲光、
@@ -35,7 +35,7 @@ tags: [quant, build, production, rag, financial-qa]
 
 ## 示例样本
 
-- `sample_quarterly_688347.html` — 单季拆解 + SVG 柱状图样例（688347.SH 华虹公司，正绿负红），由 `scripts/render.py` 生成。
+- `sample_quarterly_688347.html` — 单季拆解 + SVG 柱状图样例（688347.SH 华虹公司，正绿负红），由 `开发产物/scripts/render.py` 生成。
 
 ## 主键 / schema
 

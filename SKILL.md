@@ -1,8 +1,8 @@
 ---
 name: skill-llm-rag-financial-qa
-description: 财报公告 RAG 问答系统——就一家 A 股公司的财报/公告提问，给出带官方引用、可核对、拒绝编造的回答。三路路由（数字精确算 / 底仓文本检索 / 官方全文按需）+ 引用纪律 + 拒答。数据源 PandaData 优先、官方披露网页为次级源。BUILD 型 skill，可被复盘 agent 或投研 agent 调用。
-tags: [quant, build, rag, financial-qa, retrieval, citation]
+description: 财报公告 RAG 问答：就 A 股公司的财报与公告提问，三路路由（数字精确计算 / BM25 文本检索 / 官方全文按需），答案带官方引用、可核对，语料不覆盖即拒答，不抓付费研报。Use when the user asks questions about an A-share company's financial reports or announcements and needs cited, verifiable answers. Research and education only, not investment advice.
 license: GPL-3.0-only
+supported-runtimes: [cursor, claude-code, codex, hermes, openclaw]
 metadata:
   organization: QuantSkills
   organization_url: https://github.com/quantskills
@@ -10,9 +10,33 @@ metadata:
   repository_url: https://github.com/quantskills/skill-llm-rag-financial-qa
   project_type: skill
   collection: llm-tooling
+  maintainer: ZLHad
+  tags: [a-share, rag, financial-qa, retrieval, citation, pandadata]
+quantSkills:
+  schema_version: 2.1.0
+  organization: quantskills
+  organization_url: https://github.com/quantskills
+  repository: skill-llm-rag-financial-qa
+  repository_url: https://github.com/quantskills/skill-llm-rag-financial-qa
+  project_type: skill
   license: GPL-3.0-only
-  status: community-project
-  platforms: [claude-code, codex, cursor, hermes, openclaw]
+  maintainer: ZLHad
+  collection: llm-tooling
+  catalog:
+    category: "06"
+    subcategory: 06.statistical-ml-models
+  workflow:
+    primary_stage: evaluation
+    workflow_stages: [data-ingestion, feature-engineering, modeling, evaluation]
+  tags: [a-share, rag, financial-qa, retrieval, citation, pandadata]
+  platforms: [cursor, claude-code, codex, hermes, openclaw]
+  status: active
+  validation_level: listed
+  maintainer_type: community
+  summary_zh: "就 A 股公司财报与公告提问：数字精确计算、文本 BM25 检索、披露全文按需，答案带披露出处、可核对，语料不覆盖即拒答。"
+  summary_en: "QA over A-share financial reports and announcements with exact numeric computation, BM25 retrieval and disclosure-sourced citations; refuses when the corpus lacks coverage. Research only."
+  interface:
+    mode: natural-language
 ---
 
 # 财报公告 RAG 问答系统（#42）

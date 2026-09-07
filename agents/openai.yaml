@@ -1,3 +1,6 @@
+name: skill-llm-rag-financial-qa
+entrypoint: SKILL.md
+canonical_root: SKILL.md
 interface:
   display_name: "LLM RAG Financial QA"
   short_description: "Answer questions about an A-share company's filings with verifiable official citations"
