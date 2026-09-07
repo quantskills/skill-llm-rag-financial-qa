@@ -1,0 +1,42 @@
+---
+description: Use the LLM RAG Financial QA skill (skill-llm-rag-financial-qa) when the user asks questions about one or several A-share companies' financial reports or announcements and needs answers with official citations, exact numbers, and refusal when the corpus does not cover the question.
+alwaysApply: false
+---
+
+# LLM RAG Financial QA Skill (skill-llm-rag-financial-qa)
+
+当用户就一家或几家 A 股公司的财报/公告提问（数字、原因、事件），并要求答案带出处、可核对、不编造时，读取并遵循 [SKILL.md](../SKILL.md) 作为本 skill 的规范说明。
+详细调用声明见 `开发产物/SKILL.md`。
+
+Use this skill when the user asks questions about one or several A-share companies' financial reports or announcements and needs answers with official citations, exact numbers, and refusal when the corpus does not cover the question. Read and follow [SKILL.md](../SKILL.md) as the canonical
+instructions; the detailed agent-facing declaration lives in `开发产物/SKILL.md`.
+
+## Workflow
+
+1. Read `SKILL.md`, then `开发产物/SKILL.md`.
+2. Read the references before changing any data logic:
+- `开发产物/references/api_guide.md`
+- `开发产物/references/quality_evidence.md`
+- `开发产物/references/golden_qa.json`
+3. Run the entrypoints from the repository root:
+
+```bash
+python 开发产物/scripts/build.py --question "宁德时代2024q4归母净利润增速" --symbols 300750.SZ
+python 开发产物/scripts/build.py --symbols 002011.SZ 300750.SZ --backfill 20240101 20260711
+python 开发产物/scripts/test.py
+```
+
+## Hard rules / 硬性口径
+
+1. 三路路由：数字问题走 `get_fina_reports` 精确计算（PIT 口径），文本问题走 BM25 底仓检索，全文路默认关闭、只抓官方披露平台
+2. 每个结论必须带引用（来源 + 报告期/公告日）；语料不覆盖就拒答，不得补充外部记忆或猜测数字
+3. 不抓付费研报，不输出投资建议；答案只复述与计算公开披露内容
+
+1. Three-way routing: numeric questions go to `get_fina_reports` exact computation (point-in-time), text questions go to BM25 retrieval, full-text fetching is off by default and limited to official disclosure sites
+2. Every claim carries a citation (source + report period / announcement date); refuse when the corpus does not cover the question instead of filling from memory
+3. Never scrape paid research reports and never produce investment advice; answers only restate or compute public disclosures
+
+## Boundaries
+
+- Data source is PandaData via `panda_data`; credentials come only from environment variables or `~/.pandadata/pandadata.env`. Never hard-code or echo credentials.
+- Community Project, not reviewed, certified, or endorsed by QuantSkills. Research and educational use only; no investment advice, no return promises.

@@ -1,0 +1,7 @@
+---
+description: Load the LLM RAG Financial QA skill (skill-llm-rag-financial-qa) when the user asks questions about one or several A-share companies' financial reports or announcements and needs answers with official citations, exact numbers, and refusal when the corpus does not cover the question.
+alwaysApply: false
+---
+
+Read and follow [SKILL.md](SKILL.md) as the canonical skill instructions.
+The full Cursor rule with workflow and hard rules is [agents/cursor-rule.mdc](agents/cursor-rule.mdc).

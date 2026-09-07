@@ -1,0 +1,4 @@
+interface:
+  display_name: "LLM RAG Financial QA"
+  short_description: "Answer questions about an A-share company's filings with verifiable official citations"
+  default_prompt: "Use $skill-llm-rag-financial-qa when the user asks questions about one or several A-share companies' financial reports or announcements and needs answers with official citations, exact numbers, and refusal when the corpus does not cover the question. Read SKILL.md first and follow its data-scope rules."

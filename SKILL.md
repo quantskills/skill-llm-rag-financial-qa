@@ -12,6 +12,7 @@ metadata:
   collection: llm-tooling
   license: GPL-3.0-only
   status: community-project
+  platforms: [claude-code, codex, cursor, hermes, openclaw]
 ---
 
 # 财报公告 RAG 问答系统（#42）

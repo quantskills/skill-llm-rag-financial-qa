@@ -169,3 +169,13 @@ python 开发产物/scripts/test.py
 > 问答仅复述 / 计算公开披露，核对以官方原文为准。
 
 License: **GPL-3.0-only**
+
+## 运行时入口（Runtime entrypoints）
+
+本仓库按 QuantSkills 社区规则提供多运行时入口，均以根目录 [SKILL.md](SKILL.md) 为规范声明：
+
+| 运行时 | 入口 |
+|---|---|
+| Claude Code / Codex | 根目录 `SKILL.md`（Codex 界面元数据见 [agents/openai.yaml](agents/openai.yaml)） |
+| Cursor | [.cursor/rules/quantskills-skill.mdc](.cursor/rules/quantskills-skill.mdc)，完整规则见 [agents/cursor-rule.mdc](agents/cursor-rule.mdc) |
+| Hermes / OpenClaw | [agents/portable-loader.md](agents/portable-loader.md)（便携加载提示） |
