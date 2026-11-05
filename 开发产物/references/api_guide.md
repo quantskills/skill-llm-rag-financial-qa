@@ -1,6 +1,6 @@
 # API 指南 · skill-llm-rag-financial-qa（#42）
 
-> 数据接口、字段口径、PIT 规则、流量预算与真机实测结论。数据源 **PandaData**（`panda_data>=0.0.9`），
+> 数据接口、字段口径、PIT 规则、流量预算与真机实测结论。数据源 **PandaData**（`panda_data==1.0.6`），
 > 官方披露平台（巨潮/沪深交易所/HKEXnews/SEC EDGAR）为**全文次级源**。凭证走环境变量或
 > `~/.pandadata/pandadata.env`，**绝不硬编码**。
 

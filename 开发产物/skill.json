@@ -5,7 +5,7 @@
   "type": "build",
   "category": "report",
   "description": "财报公告 RAG 问答：三路路由（数字精确算/底仓文本检索/官方全文按需）+ 引用纪律 + 拒答，PandaData 优先、官方披露网页为次级源。可被复盘 agent 或投研 agent 调用。",
-  "data_source": "PandaData (panda_data>=0.0.9); 官方披露平台（巨潮/交易所/HKEX/EDGAR）为全文次级源",
+  "data_source": "PandaData (panda_data==1.0.6); 官方披露平台（巨潮/交易所/HKEX/EDGAR）为全文次级源",
   "entrypoints": {
     "run": "scripts/build.py:run",
     "validate_input": "scripts/build.py:validate_input",

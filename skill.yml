@@ -22,8 +22,8 @@ readme:
   zh: README.md
   en: README.en.md
 
-data_source: PandaData (panda_data>=0.0.9) + 官方披露平台（全文次级源）
-dependencies: [panda_data>=0.0.9, pandas, pyarrow]
+data_source: PandaData (panda_data==1.0.6) + 官方披露平台（全文次级源）
+dependencies: [panda_data==1.0.6, pandas, pyarrow]
 optional_dependencies: [beautifulsoup4, pdfminer.six, requests]
 
 entrypoints:
