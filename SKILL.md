@@ -80,3 +80,7 @@ python 开发产物/scripts/test.py
 ## 边界与免责
 
 数据源 PandaData（结构化字段与财报数字）+ 官方披露平台（全文次级源，不抓付费研报）。**Community Project，未经 QuantSkills 官方审核/认证/背书。仅量化研究与教育示例，不构成投资建议，不承诺收益。** 问答仅复述/计算公开披露，核对以官方原文为准；拒答分"硬拒答（symbol 不在底仓，引擎保证）"与"话题不覆盖（由调用方 agent 按契约声明）"两层，见 quality_evidence.md。数据源/假设/参数/限制/风险边界见开发产物 SKILL.md 与 references/。
+
+## Pandadata compatibility
+
+[Pandadata 1.0.6 compatibility](references/pandadata-compatibility.md) — exact SDK baseline, validation scope, and shared guidance for all supported agent runtimes.
